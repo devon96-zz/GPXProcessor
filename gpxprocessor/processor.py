@@ -5,6 +5,8 @@ License: GPLv3'''
 
 import argparse
 import sys
+import re
+import time
 from lxml import etree, objectify
 from lxml.etree import XMLSyntaxError
 
@@ -36,7 +38,28 @@ def validate_gpx(xml_file):
 
 
 def produce_output(gpx_file, log_file, verbose, merge, threshold):
-    print("Hello!")
+
+    base_range = range(-150, 15)
+    green_range = range(threshold, 14)
+    orange_range = range(-149, threshold + 1)
+    red_range = range(-150, -149)
+
+    root = etree.Element("gpx")
+    root.set('version', '1.1')
+    root.set('xmlns', 'http://www.topografix.com/GPX/1/1')
+
+    root.append(etree.Element("child1"))
+    child2 = etree.SubElement(root, "child2")
+    child3 = etree.SubElement(root, "child3")
+
+    print(etree.tostring(root, pretty_print=True,
+                         xml_declaration=True, encoding='UTF-8').decode('UTF-8'))
+
+    for line in log_file:
+        if "PeerRSSI" in line:
+            match = re.match(r'(.*\;.*);.*PeerRSSI:(-\d+)', line)
+            print(time.strptime(match.group(1), "%Y.%m.%d;%H:%M:%S.%f"))
+            print(match.group(2))
 
 
 def main():
