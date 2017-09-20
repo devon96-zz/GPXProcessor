@@ -8,7 +8,7 @@ setup(
     name='gpxprocessor',
 
     # Current version of the script.
-    version='0.2.2',
+    version='0.2.3',
 
     # Author details.
     author='Konrad Dryja',
