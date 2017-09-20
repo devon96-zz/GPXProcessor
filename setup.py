@@ -18,7 +18,7 @@ setup(
     packages=['gpxprocessor'],
 
     # Install all required packages.
-    install_requires=['argparse', 'lxml'],
+    install_requires=['argparse', 'lxml', 'python-dateutil'],
 
     # Required Python3 or above.
     python_requires='>=3',

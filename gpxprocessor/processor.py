@@ -7,6 +7,9 @@ import argparse
 import sys
 import re
 import time
+from time import mktime
+from datetime import datetime
+from dateutil.parser import parse
 from lxml import etree, objectify
 from lxml.etree import XMLSyntaxError
 
@@ -39,27 +42,88 @@ def validate_gpx(xml_file):
 
 def produce_output(gpx_file, log_file, verbose, merge, threshold):
 
+    # Define our ranges on which we will base all colouring.
     base_range = range(-150, 15)
     green_range = range(threshold, 14)
     orange_range = range(-149, threshold + 1)
     red_range = range(-150, -149)
 
-    root = etree.Element("gpx")
-    root.set('version', '1.1')
-    root.set('xmlns', 'http://www.topografix.com/GPX/1/1')
+    # Create our output XML tree and append the root element - gpx
+    outputxml_root = etree.Element("gpx")
 
-    root.append(etree.Element("child1"))
-    child2 = etree.SubElement(root, "child2")
-    child3 = etree.SubElement(root, "child3")
+    # Set metadata of our xml output file.
+    outputxml_root.set('version', '1.1')
 
-    print(etree.tostring(root, pretty_print=True,
-                         xml_declaration=True, encoding='UTF-8').decode('UTF-8'))
+    # Set namespace of our xml output file.
+    outputxml_root.set('xmlns', 'http://www.topografix.com/GPX/1/1')
+
+    # Reopen passed GPX file so we can read its contents.
+    gpx_file = open(gpx_file.name, 'r')
+
+    # Parse the gpx file into lxml structure
+    parsed_gpx = etree.parse(gpx_file).getroot()
+
+    # Every field has appended namespace.
+    # So to search for them efficiently, we will need to extract it from the original xml.
+    # Later we will append it in front of every field.
+    xml_namespace = '{' + parsed_gpx.nsmap[None] + '}'
+
+    # Initiate our dictionary containing all trackpoints.
+    trackpoints_dict = {}
+
+    # For every element in our parsed gpx called trkpt (i.e. all track points and their data)
+    for element in parsed_gpx.findall('.//' + xml_namespace + 'trkpt'):
+
+        # Extract and parse the timestamp stored under 'time' element as text
+        # Also remove the time offset info, since it's 0 anyway and breaks comparison later on.
+        waypoint_timestamp = parse(element.find(
+            xml_namespace + 'time').text).replace(tzinfo=None)
+
+        # Every timestamp will be a key in our dictionary.
+        # Every key will contain a list where first element is latitude
+        # Second element is longitude
+        # And third element is 'ele' from the gpx file
+        trackpoints_dict[waypoint_timestamp] = []
+        trackpoints_dict[waypoint_timestamp].append(element.attrib['lat'])
+        trackpoints_dict[waypoint_timestamp].append(element.attrib['lon'])
+        trackpoints_dict[waypoint_timestamp].append(
+            element.find(xml_namespace + 'ele').text)
 
     for line in log_file:
+
+        # Only check lines containing PeerRSSI (we don't care about others).
         if "PeerRSSI" in line:
+
+            # Extract Date from the log and PeerRSSI value
+            # Using regular expression.
             match = re.match(r'(.*\;.*);.*PeerRSSI:(-\d+)', line)
-            print(time.strptime(match.group(1), "%Y.%m.%d;%H:%M:%S.%f"))
-            print(match.group(2))
+
+            # Need to strip time to match our format.
+            # It is matched as the first group from regex.
+            log_struct_time = time.strptime(
+                match.group(1), "%Y.%m.%d;%H:%M:%S.%f")
+
+            # Convert time.struct_time to datetime so we can compare them.
+            log_datetime = datetime.fromtimestamp(mktime(log_struct_time))
+
+            # Find the closest timestamp from the GPX file.
+            # This will be the minimal absolute of subtraction across every date.
+            closest_date = min(trackpoints_dict.keys(),
+                               key=lambda x: abs(x - log_datetime))
+
+            # Add new waypoint to our output XML file.
+            waypoint = etree.SubElement(outputxml_root, "wpt")
+
+            # Add both lat and lon as an attribute of the wpt
+            waypoint.attrib['lat'] = trackpoints_dict[closest_date][0]
+            waypoint.attrib['lon'] = trackpoints_dict[closest_date][1]
+
+            # colour = etree.SubElement(waypoint, 'color')
+            # colour.text = "blue"
+            # print(match.group(2))
+
+    print(etree.tostring(outputxml_root, pretty_print=True,
+                         xml_declaration=True, encoding='UTF-8').decode('UTF-8'))
 
 
 def main():
