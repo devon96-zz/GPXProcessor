@@ -1,27 +1,42 @@
 #!/usr/bin/env python3
+'''Processor for GPX and LOG files
+Author: Konrad Dryja
+License: GPLv3'''
 
 import argparse
+import sys
 from lxml import etree, objectify
 from lxml.etree import XMLSyntaxError
 
 
-def xml_validator(some_xml_string, xsd_file='gpx.xsd'):
-    try:
-        schema = etree.XMLSchema(file=xsd_file)
-        parser = objectify.makeparser(schema=schema)
-        objectify.fromstring(some_xml_string, parser)
-        print("YEAH!, my xml file has validated")
-    except XMLSyntaxError:
-        # handle exception here
-        print("Oh NO!, my xml file does not validate")
+def validate_gpx(xml_file):
+    '''Function to validate GPX file against XSD schema of gpx file'''
 
-
-def validate_xml():
-    xml_file = open('test.xml', 'r')
+    # Copy all GPX file's contents into a string variable.
     xml_string = xml_file.read()
     xml_file.close()
 
-    xml_validator(xml_string)
+    # Try to parse the schema.
+    try:
+        # Declare schema to use.
+        schema = etree.XMLSchema(file='gpx.xsd')
+
+        # Create a parser which we will match against our xml string.
+        parser = objectify.makeparser(schema=schema)
+
+        # Match XSD with the XML file. Nothing will happen if successful.
+        # XMLSyntaxError will be raised if unsuccessful.
+        objectify.fromstring(str.encode(xml_string), parser)
+
+    # Capture the exception.
+    except XMLSyntaxError:
+        # Print error message and exit the program.
+        print("ERROR. Failed to validate the GPX file.")
+        sys.exit(1)
+
+
+def produce_output(gpx_file, log_file, verbose, merge, threshold):
+    print("Hello!")
 
 
 def main():
@@ -57,11 +72,30 @@ def main():
                         default=49)
 
     # Parse all arguments to the Namespace object.
-    args = parser.parse_args()
+    args = parser.parse_args(['file1.gpx', 'file2.log'])
 
-    print("Success!")
-    print(vars(args))
+    # Save passed .gpx file to a variable.
+    gpx_file = vars(args)['gpx']
+
+    # Save passed .log file to a variable.
+    log_file = vars(args)['log']
+
+    # Save whether to run the program in increase verbosity
+    verbose = vars(args)['verbose']
+
+    # Save whether to merge .gpx with .log
+    merge = vars(args)['merge']
+
+    # Save passed threshold value.
+    threshold = vars(args)['gothresh']
+
+    # Validate passed .gpx file against .xsd schema.
+    validate_gpx(gpx_file)
+
+    # Go through the files and produce the output.
+    produce_output(gpx_file, log_file, verbose, merge, threshold)
 
 
+# Start function main() if it is the main entry point.
 if __name__ == '__main__':
     main()
