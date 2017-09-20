@@ -36,26 +36,18 @@ def validate_gpx(xml_file):
     # Capture the exception.
     except XMLSyntaxError:
         # Print error message and exit the program.
-        print("ERROR. Failed to validate the GPX file.")
+        print('ERROR. Failed to validate the GPX file.')
         sys.exit(1)
 
 
 def produce_output(gpx_file, log_file, verbose, merge, threshold):
+    '''Produce XML output containing information about waypoint (and possibly trackpoints)'''
 
     # Define our ranges on which we will base all colouring.
     base_range = range(-150, 15)
     green_range = range(threshold, 14)
     orange_range = range(-149, threshold + 1)
     red_range = range(-150, -149)
-
-    # Create our output XML tree and append the root element - gpx
-    outputxml_root = etree.Element("gpx")
-
-    # Set metadata of our xml output file.
-    outputxml_root.set('version', '1.1')
-
-    # Set namespace of our xml output file.
-    outputxml_root.set('xmlns', 'http://www.topografix.com/GPX/1/1')
 
     # Reopen passed GPX file so we can read its contents.
     gpx_file = open(gpx_file.name, 'r')
@@ -68,6 +60,14 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold):
     # Later we will append it in front of every field.
     xml_namespace = '{' + parsed_gpx.nsmap[None] + '}'
 
+    # Create our output XML tree and append the root element - gpx
+    outputxml_root = etree.Element('gpx')
+
+    # Set metadata of our xml output file.
+    outputxml_root.set('version', '1.1')
+
+    # Set namespace of our xml output file.
+    outputxml_root.set('xmlns', 'http://www.topografix.com/GPX/1/1')
     # Initiate our dictionary containing all trackpoints.
     trackpoints_dict = {}
 
@@ -92,19 +92,29 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold):
     for line in log_file:
 
         # Only check lines containing PeerRSSI (we don't care about others).
-        if "PeerRSSI" in line:
+        if 'PeerRSSI' in line:
 
             # Extract Date from the log and PeerRSSI value
             # Using regular expression.
-            match = re.match(r'(.*\;.*);.*PeerRSSI:(-\d+)', line)
+            regex_match = re.match(r'(.*\;.*);.*PeerRSSI:(-\d+)', line)
 
             # Need to strip time to match our format.
             # It is matched as the first group from regex.
             log_struct_time = time.strptime(
-                match.group(1), "%Y.%m.%d;%H:%M:%S.%f")
+                regex_match.group(1), '%Y.%m.%d;%H:%M:%S.%f')
 
             # Convert time.struct_time to datetime so we can compare them.
             log_datetime = datetime.fromtimestamp(mktime(log_struct_time))
+
+            # If PeerRSSI is outside -148 and +14 range, omit the entry and report to stderr
+            if int(regex_match.group(2)) not in base_range:
+                sys.stderr.write(
+                    'TIMESTAMP FROM .LOG: {}\n'.format(log_datetime))
+                sys.stderr.write(
+                    'PeerRSSI FROM .LOG: {}\n'.format(regex_match.group(2)))
+                sys.stderr.write(
+                    'PeerRSSI OUTSIDE -148 AND +14 RANGE. SKIPPING.\n\n')
+                continue
 
             # Find the closest timestamp from the GPX file.
             # This will be the minimal absolute of subtraction across every date.
@@ -112,18 +122,48 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold):
                                key=lambda x: abs(x - log_datetime))
 
             # Add new waypoint to our output XML file.
-            waypoint = etree.SubElement(outputxml_root, "wpt")
+            waypoint = etree.SubElement(outputxml_root, 'wpt')
 
             # Add both lat and lon as an attribute of the wpt
             waypoint.attrib['lat'] = trackpoints_dict[closest_date][0]
             waypoint.attrib['lon'] = trackpoints_dict[closest_date][1]
 
-            # colour = etree.SubElement(waypoint, 'color')
-            # colour.text = "blue"
-            # print(match.group(2))
+            # Add symbol element to the waypoint.
+            symbol = etree.SubElement(waypoint, 'sym')
 
+            # Depending on the value of the PeerRSSID, set corresponding waypoint colour.
+            if int(regex_match.group(2)) in green_range:
+                symbol.text = 'Navaid, Green'
+            if int(regex_match.group(2)) in orange_range:
+                symbol.text = 'Navaid, Orange'
+            if int(regex_match.group(2)) in red_range:
+                symbol.text = 'Navaid, Red'
+
+            # If verbose flag has been set, output debug info to the stderr.
+            if verbose:
+                sys.stderr.write(
+                    'TIMESTAMP FROM .LOG: {}\n'.format(log_datetime))
+                sys.stderr.write(
+                    'PeerRSSI FROM .LOG: {}\n'.format(regex_match.group(2)))
+                sys.stderr.write(
+                    'MATCHED LAT FROM .GPX: {}\n'.format(waypoint.attrib['lat']))
+                sys.stderr.write(
+                    'MATCHED LON FROM .GPX: {}\n\n'.format(waypoint.attrib['lon']))
+
+    # At the very end, if "--merge" flag has been set, append all tracks to the file.
+    if merge:
+        # To achieve this, we locate the <trk> tag in our original gpx
+        # and append it to our output xml.
+        outputxml_root.append(parsed_gpx.find(xml_namespace + 'trk'))
+
+    # Print our resulting XML file to the stdout.
+    # Remembering about the xml declaration and to print it in a pretty format.
+    # Also strip the "ns0" namespace tag, as it is not needed.
+    # Really nasty way of doing that...
     print(etree.tostring(outputxml_root, pretty_print=True,
-                         xml_declaration=True, encoding='UTF-8').decode('UTF-8'))
+                         xml_declaration=True, encoding='UTF-8')
+          .decode('UTF-8')
+          .replace('ns0:', ''))
 
 
 def main():
@@ -143,23 +183,23 @@ def main():
 
     # Capture whether user intends to run the program with increased verbosity level. Default false.
     parser.add_argument('--verbose', '-v', action='store_true',
-                        help="""report .log radio test numbers with associated .gpx lat/lon co-ords
-                                to stderr during processing""")
+                        help='''report .log radio test numbers with associated .gpx lat/lon co-ords
+                                to stderr during processing''')
 
     # Capture whether user intends to merge gpx and log files during execution. Defaults false.
     parser.add_argument('--merge', '-m', action='store_true',
-                        help="""add radio tests as waypoints into the output file which combines the
-                                trackpoints from .gpx and the radio tests from .log as waypoints""")
+                        help='''add radio tests as waypoints into the output file which combines the
+                                trackpoints from .gpx and the radio tests from .log as waypoints''')
 
     # Allows user to enter his own threshold. If left blank, will use -125.
     parser.add_argument('--gothresh', type=int, action='store', metavar='[-148-14]',
                         choices=range(-148, 15),
-                        help="""threshold in dBm between strong signal (green)
-                                and marginal signal (orange). Default is -125.""",
+                        help='''threshold in dBm between strong signal (green)
+                                and marginal signal (orange). Default is -125.''',
                         default=49)
 
     # Parse all arguments to the Namespace object.
-    args = parser.parse_args(['file1.gpx', 'file2.log'])
+    args = parser.parse_args()
 
     # Save passed .gpx file to a variable.
     gpx_file = vars(args)['gpx']
