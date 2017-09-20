@@ -24,12 +24,44 @@ def validate_xml():
     xml_validator(xml_string)
 
 
-parser = argparse.ArgumentParser(description='Process GPX and LOG files.')
-parser.add_argument('files', metavar='*.gpx', type=int, nargs='+',
-                    help='a file to process')
-parser.add_argument('--sum', dest='accumulate', action='store_const',
-                    const=sum, default=max,
-                    help='sum the integers (default: find the max)')
+def main():
+    '''Main point of entry to the program'''
 
-args = parser.parse_args()
-print(args.accumulate(args.integers))
+    # Define parser for command line arguments
+    parser = argparse.ArgumentParser(description='Process GPX and LOG files.')
+
+    # Add argument to fetch gpx file location and make sure it opens
+    # (i.e. file exists and permissions are in order)
+    parser.add_argument('gpx', metavar='*.gpx', type=argparse.FileType('r'),
+                        help='.gpx file path')
+
+    # Same as above but with log file.
+    parser.add_argument('log', metavar='*.log', type=argparse.FileType('r'),
+                        help='.log file path')
+
+    # Capture whether user intends to run the program with increased verbosity level. Default false.
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help="""report .log radio test numbers with associated .gpx lat/lon co-ords
+                                to stderr during processing""")
+
+    # Capture whether user intends to merge gpx and log files during execution. Defaults false.
+    parser.add_argument('--merge', '-m', action='store_true',
+                        help="""add radio tests as waypoints into the output file which combines the
+                                trackpoints from .gpx and the radio tests from .log as waypoints""")
+
+    # Allows user to enter his own threshold. If left blank, will use -125.
+    parser.add_argument('--gothresh', type=int, action='store', metavar='[-148-14]',
+                        choices=range(-148, 15),
+                        help="""threshold in dBm between strong signal (green)
+                                and marginal signal (orange). Default is -125.""",
+                        default=49)
+
+    # Parse all arguments to the Namespace object.
+    args = parser.parse_args()
+
+    print("Success!")
+    print(vars(args))
+
+
+if __name__ == '__main__':
+    main()
