@@ -7,6 +7,7 @@ import argparse
 import sys
 import re
 import time
+import os
 from time import mktime
 from datetime import datetime
 from dateutil.parser import parse
@@ -21,10 +22,13 @@ def validate_gpx(xml_file):
     xml_string = xml_file.read()
     xml_file.close()
 
+    # Obtain location of the XSD path (relatively to the current file location)
+    xsd_file_location = os.path.join(os.path.dirname(__file__), 'gpx.xsd')
+
     # Try to parse the schema.
     try:
         # Declare schema to use.
-        schema = etree.XMLSchema(file='gpx.xsd')
+        schema = etree.XMLSchema(file=xsd_file_location)
 
         # Create a parser which we will match against our xml string.
         parser = objectify.makeparser(schema=schema)

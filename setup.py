@@ -8,7 +8,7 @@ setup(
     name='gpxprocessor',
 
     # Current version of the script.
-    version='0.2.0',
+    version='0.2.2',
 
     # Author details.
     author='Konrad Dryja',
@@ -20,11 +20,14 @@ setup(
     # Install all required packages.
     install_requires=['argparse', 'lxml', 'python-dateutil'],
 
+    # Include gpx XSD schema with the package.
+    package_data={'gpxprocessor': ['gpx.xsd']},
+
     # Required Python3 or above.
     python_requires='>=3',
 
     # Repository URL.
-    url='https://github.com/devon96/GPXProcessor',  # use the URL to the github repo
+    url='https://github.com/devon96/GPXProcessor',
 
     # Main entrypoint to the script.
     entry_points={
