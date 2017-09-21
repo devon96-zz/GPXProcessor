@@ -8,7 +8,7 @@ import sys
 import re
 import time
 import os
-from time import mktime
+from copy import deepcopy
 from datetime import datetime
 from dateutil.parser import parse
 from lxml import etree, objectify
@@ -44,7 +44,7 @@ def validate_gpx(xml_file):
         sys.exit(1)
 
 
-def produce_output(gpx_file, log_file, verbose, merge, threshold):
+def produce_output(gpx_file, log_file, verbose, merge, threshold, skip_value):
     '''Produce XML output containing information about waypoint (and possibly trackpoints)'''
 
     # Define our ranges on which we will base all colouring.
@@ -57,7 +57,9 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold):
     gpx_file = open(gpx_file.name, 'r')
 
     # Parse the gpx file into lxml structure
-    parsed_gpx = etree.parse(gpx_file).getroot()
+    # Strip all blank space from the XML file using etree parser
+    parser = etree.XMLParser(remove_blank_text=True)
+    parsed_gpx = etree.parse(gpx_file, parser).getroot()
 
     # Every field has appended namespace.
     # So to search for them efficiently, we will need to extract it from the original xml.
@@ -71,7 +73,7 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold):
     outputxml_root.set('version', '1.1')
 
     # Set namespace of our xml output file.
-    outputxml_root.set('xmlns', 'http://www.topografix.com/GPX/1/1')
+    outputxml_root.set('xmlns', parsed_gpx.nsmap[None])
     # Initiate our dictionary containing all trackpoints.
     trackpoints_dict = {}
 
@@ -93,10 +95,20 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold):
         trackpoints_dict[waypoint_timestamp].append(
             element.find(xml_namespace + 'ele').text)
 
+    # Initiate iterator according to the "skip" variable
+    skip_iterator = 0
+
     for line in log_file:
 
         # Only check lines containing PeerRSSI (we don't care about others).
         if 'PeerRSSI' in line:
+
+            # If it is not ours skip_value'th iteration, skip the line
+            # Also increase the iterator
+            if (skip_iterator % skip_value) != 0:
+                skip_iterator += 1
+                continue
+            skip_iterator += 1
 
             # Extract Date from the log and PeerRSSI value
             # Using regular expression.
@@ -108,7 +120,7 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold):
                 regex_match.group(1), '%Y.%m.%d;%H:%M:%S.%f')
 
             # Convert time.struct_time to datetime so we can compare them.
-            log_datetime = datetime.fromtimestamp(mktime(log_struct_time))
+            log_datetime = datetime.fromtimestamp(time.mktime(log_struct_time))
 
             # If PeerRSSI is outside -148 and +14 range, omit the entry and report to stderr
             if int(regex_match.group(2)) not in base_range:
@@ -139,7 +151,7 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold):
             if int(regex_match.group(2)) in green_range:
                 symbol.text = 'Navaid, Green'
             if int(regex_match.group(2)) in orange_range:
-                symbol.text = 'Navaid, Orange'
+                symbol.text = 'orange-blank'
             if int(regex_match.group(2)) in red_range:
                 symbol.text = 'Navaid, Red'
 
@@ -156,18 +168,20 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold):
 
     # At the very end, if "--merge" flag has been set, append all tracks to the file.
     if merge:
-        # To achieve this, we locate the <trk> tag in our original gpx
+        # To achieve this, we locate the <trk> tag (that's first one) in our original gpx
         # and append it to our output xml.
-        outputxml_root.append(parsed_gpx.find(xml_namespace + 'trk'))
+        outputxml_root.append(deepcopy(parsed_gpx[1]))
+
+        # Also change the colour of the track to 0000ff.
+        outputxml_root.find(".//" + xml_namespace +
+                            "extensions")[0].text = "0000ff"
 
     # Print our resulting XML file to the stdout.
     # Remembering about the xml declaration and to print it in a pretty format.
-    # Also strip the "ns0" namespace tag, as it is not needed.
-    # Really nasty way of doing that...
+
     print(etree.tostring(outputxml_root, pretty_print=True,
                          xml_declaration=True, encoding='UTF-8')
-          .decode('UTF-8')
-          .replace('ns0:', ''))
+          .decode('UTF-8'))
 
 
 def main():
@@ -202,8 +216,14 @@ def main():
                                 and marginal signal (orange). Default is -125.''',
                         default=49)
 
+    # Allows user to enter his own skip every X value. If left blank, will use 1.
+    parser.add_argument('--skip', type=int, action='store', metavar='[1-10]',
+                        choices=range(1, 11),
+                        help='''process only every Xth radio test. Default is 1.''',
+                        default=1)
+
     # Parse all arguments to the Namespace object.
-    args = parser.parse_args()
+    args = parser.parse_args(['file1.gpx', 'file2.log', '-m'])
 
     # Save passed .gpx file to a variable.
     gpx_file = vars(args)['gpx']
@@ -220,11 +240,14 @@ def main():
     # Save passed threshold value.
     threshold = vars(args)['gothresh']
 
+    # Save passed skip value.
+    skip_value = vars(args)['skip']
+
     # Validate passed .gpx file against .xsd schema.
     validate_gpx(gpx_file)
 
     # Go through the files and produce the output.
-    produce_output(gpx_file, log_file, verbose, merge, threshold)
+    produce_output(gpx_file, log_file, verbose, merge, threshold, skip_value)
 
 
 # Start function main() if it is the main entry point.
