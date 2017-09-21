@@ -215,7 +215,7 @@ def main():
                         choices=range(-148, 15),
                         help='''threshold in dBm between strong signal (green)
                                 and marginal signal (orange). Default is -125.''',
-                        default=49)
+                        default=-125)
 
     # Allows user to enter his own skip every X value. If left blank, will use 1.
     parser.add_argument('--skip', type=int, action='store', metavar='[1-10]',
