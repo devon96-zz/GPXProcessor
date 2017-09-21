@@ -223,7 +223,7 @@ def main():
                         default=1)
 
     # Parse all arguments to the Namespace object.
-    args = parser.parse_args(['file1.gpx', 'file2.log', '-m'])
+    args = parser.parse_args()
 
     # Save passed .gpx file to a variable.
     gpx_file = vars(args)['gpx']
