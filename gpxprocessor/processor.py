@@ -71,6 +71,7 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold, skip_value):
 
     # Set metadata of our xml output file.
     outputxml_root.set('version', '1.1')
+    outputxml_root.set('creator', 'GPXProcessor')
 
     # Set namespace of our xml output file.
     outputxml_root.set('xmlns', parsed_gpx.nsmap[None])
@@ -144,16 +145,16 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold, skip_value):
             waypoint.attrib['lat'] = trackpoints_dict[closest_date][0]
             waypoint.attrib['lon'] = trackpoints_dict[closest_date][1]
 
-            # Add symbol element to the waypoint.
-            symbol = etree.SubElement(waypoint, 'sym')
+            # Add color element to the waypoint.
+            symbol_color = etree.SubElement(waypoint, 'color')
 
             # Depending on the value of the PeerRSSID, set corresponding waypoint colour.
             if int(regex_match.group(2)) in green_range:
-                symbol.text = 'Navaid, Green'
+                symbol_color.text = 'green'
             if int(regex_match.group(2)) in orange_range:
-                symbol.text = 'orange-blank'
+                symbol_color.text = 'orange'
             if int(regex_match.group(2)) in red_range:
-                symbol.text = 'Navaid, Red'
+                symbol_color.text = 'red'
 
             # If verbose flag has been set, output debug info to the stderr.
             if verbose:
