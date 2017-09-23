@@ -108,7 +108,8 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold, skip_value):
         # Check whether LocalRx has been changed since the last test.
         if 'LocalRx' in line:
             regex_match = re.match(r'.*LocalRx:(-?\d+)', line)
-            has_localrx_changed = (curent_localrx == int(regex_match.group(1)))
+            has_localrx_changed = not (
+                curent_localrx == int(regex_match.group(1)))
             curent_localrx = int(regex_match.group(1))
 
         # Only check lines containing PeerRSSI (we don't care about others).
