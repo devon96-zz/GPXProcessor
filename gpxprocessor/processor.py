@@ -96,10 +96,20 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold, skip_value):
         trackpoints_dict[waypoint_timestamp].append(
             element.find(xml_namespace + 'ele').text)
 
-    # Initiate iterator according to the "skip" variable
+    # Initiate iterator according to the "skip" variable.
     skip_iterator = 0
 
+    # Initiate variables to track LocalRx value.
+    curent_localrx = 0
+    has_localrx_changed = True
+
     for line in log_file:
+
+        # Check whether LocalRx has been changed since the last test.
+        if 'LocalRx' in line:
+            regex_match = re.match(r'.*LocalRx:(-?\d+)', line)
+            has_localrx_changed = (curent_localrx == int(regex_match.group(1)))
+            curent_localrx = int(regex_match.group(1))
 
         # Only check lines containing PeerRSSI (we don't care about others).
         if 'PeerRSSI' in line:
@@ -113,7 +123,7 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold, skip_value):
 
             # Extract Date from the log and PeerRSSI value
             # Using regular expression.
-            regex_match = re.match(r'(.*\;.*);.*PeerRSSI:(-\d+)', line)
+            regex_match = re.match(r'(.*\;.*);.*PeerRSSI:(-?\d+)', line)
 
             # Need to strip time to match our format.
             # It is matched as the first group from regex.
@@ -149,12 +159,16 @@ def produce_output(gpx_file, log_file, verbose, merge, threshold, skip_value):
             symbol_color = etree.SubElement(waypoint, 'color')
 
             # Depending on the value of the PeerRSSID, set corresponding waypoint colour.
-            if int(regex_match.group(2)) in green_range:
-                symbol_color.text = 'green'
-            if int(regex_match.group(2)) in orange_range:
-                symbol_color.text = 'orange'
-            if int(regex_match.group(2)) in red_range:
+
+            # If PeerRSSI in Red Range or
+            # LocalRX hasn't changed since the last test, set colour to red.
+            if (int(regex_match.group(2)) in red_range) or (not has_localrx_changed):
                 symbol_color.text = 'red'
+            # Else check whether it's in Green or Orange range.
+            elif int(regex_match.group(2)) in green_range:
+                symbol_color.text = 'green'
+            elif int(regex_match.group(2)) in orange_range:
+                symbol_color.text = 'orange'
 
             # If verbose flag has been set, output debug info to the stderr.
             if verbose:
