@@ -1,3 +1,4 @@
+[![PyPI version](https://badge.fury.io/py/gpxprocessor.svg)](https://badge.fury.io/py/gpxprocessor)
 # GPXProcessor
 Processor for GPX and LOG files
 # Installation
